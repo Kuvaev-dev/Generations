@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace Generations
 {
@@ -18,6 +19,8 @@ namespace Generations
 
         static void Main(string[] args)
         {
+            Console.OutputEncoding = Encoding.Unicode;
+
             Console.Write("Введіть радіус дії дронів: ");
             Radius = Convert.ToDouble(Console.ReadLine());
 
