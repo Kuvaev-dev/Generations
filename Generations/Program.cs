@@ -3,109 +3,142 @@ using System.Collections.Generic;
 
 namespace Generations
 {
+    // Задача
+    // Нехай є військо противника, розташоване нерівномірно на певній території.Є 10 бойових     дронів. При вибуху в деякому радіусі не залишається нічого живого. Знайти такі координати для кожного дрону так, щоб після вибухів у противника залишалось якомога менше військ. Радіус дії вводиться з клавіатури.Противник і його кількість генеруються випадково. На екрані - початкова картинка і картинка після вибуху.
     internal class Program
     {
         private static Random _rnd = new Random();
-        const int GenerationSize = 10000;
+        const int GenerationSize = 100;
         const int GenerationNumbers = 200;
-        const double MutationProability = 0.2; 
+        const double MutationProbability = 0.2;
+        const int NumberOfDrones = 10;
+        static double Radius;
+
+        static List<(double, double)> enemies = new List<(double, double)>();
 
         static void Main(string[] args)
         {
-            // Ініціалізація нульового покоління
-            List<KeyValuePair<int, double>> generation = GenerateRandom();
+            Console.Write("Введіть радіус дії дронів: ");
+            Radius = Convert.ToDouble(Console.ReadLine());
+
+            int enemyCount = _rnd.Next(30, 100);
+            GenerateEnemies(enemyCount);
+
+            List<KeyValuePair<int[], double>> generation = GenerateRandom();
             SortGeneration(generation);
 
-            // Основний цикл генерації
             for (int getNum = 0; getNum < GenerationNumbers; getNum++)
             {
                 generation = GenerateNewGeneration(generation, true);
                 SortGeneration(generation);
 
-                Console.WriteLine($"Краща особа: {Weight(generation[0].Key)}");
+                Console.WriteLine($"Краща особа: {generation[0].Value}");
                 Console.WriteLine($"Generation: {getNum}");
             }
 
-            Console.WriteLine($"x = {GetX(generation[0].Key)}");
-            Console.WriteLine($"y = {GetY(generation[0].Key)}");
-            Console.WriteLine("Genome = {0:X}", generation[0].Key);
+            int[] bestGenome = generation[0].Key;
+            Console.WriteLine("Координати дронів:");
+            for (int i = 0; i < NumberOfDrones; i++)
+            {
+                Console.WriteLine($"Дрон {i + 1}: x = {GetX(bestGenome[i])}, y = {GetY(bestGenome[i])}");
+            }
 
             Console.Write("Press any key to continue...");
             Console.ReadKey(true);
         }
 
-        // Генерація першого випадкового покоління
-        private static List<KeyValuePair<int, double>> GenerateRandom()
+        private static void GenerateEnemies(int count)
         {
-            List<KeyValuePair<int, double>> result = new List<KeyValuePair<int, double>>();
-            for (int i = 0; i < GenerationSize * 2; i++)
+            enemies.Clear();
+            for (int i = 0; i < count; i++)
             {
-                int genome = _rnd.Next();
-                result.Add(new KeyValuePair<int, double>(genome, Weight(genome)));
+                double x = _rnd.NextDouble() * 100;
+                double y = _rnd.NextDouble() * 100;
+                enemies.Add((x, y));
+            }
+        }
+
+        private static List<KeyValuePair<int[], double>> GenerateRandom()
+        {
+            List<KeyValuePair<int[], double>> result = new List<KeyValuePair<int[], double>>();
+            for (int i = 0; i < GenerationSize; i++)
+            {
+                int[] genome = new int[NumberOfDrones];
+                for (int j = 0; j < NumberOfDrones; j++)
+                {
+                    genome[j] = _rnd.Next();
+                }
+                result.Add(new KeyValuePair<int[], double>(genome, Fitness(genome)));
             }
             return result;
         }
 
-        // Початкова відбраковка
-        private static void SortGeneration(List<KeyValuePair<int, double>> generation)
+        private static void SortGeneration(List<KeyValuePair<int[], double>> generation)
         {
             generation.Sort((x, y) => y.Value.CompareTo(x.Value));
             if (generation.Count > GenerationSize)
                 generation.RemoveRange(GenerationSize, generation.Count - GenerationSize);
         }
 
-        // Обчислення фітнес-функції
         private static double GetY(int genome)
         {
             int y = genome & 0xffff;
-            return y * (1.28 + 1.28) / (0x10000 - 1.0) - 1.28;
+            return y * 100.0 / 0x10000;
         }
 
         private static double GetX(int genome)
         {
             int x = (genome >> 16) & 0xffff;
-            return x * (1.28 + 1.28) / (0x10000 - 1.0) - 1.28;
+            return x * 100.0 / 0x10000;
         }
 
-        private static double Sqr(double x)
+        private static double Fitness(int[] genome)
         {
-            return x * x;
+            HashSet<int> destroyedEnemies = new HashSet<int>();
+
+            for (int i = 0; i < NumberOfDrones; i++)
+            {
+                double droneX = GetX(genome[i]);
+                double droneY = GetY(genome[i]);
+
+                for (int j = 0; j < enemies.Count; j++)
+                {
+                    double enemyX = enemies[j].Item1;
+                    double enemyY = enemies[j].Item2;
+
+                    if (Math.Sqrt(Math.Pow(droneX - enemyX, 2) + Math.Pow(droneY - enemyY, 2)) <= Radius)
+                    {
+                        destroyedEnemies.Add(j);
+                    }
+                }
+            }
+
+            return destroyedEnemies.Count;
         }
 
-        private static double Weight(int genome)
+        private static List<KeyValuePair<int[], double>> GenerateNewGeneration(List<KeyValuePair<int[], double>> parents, bool useElitism)
         {
-            double x = GetX(genome);
-            double y = GetY(genome);
-            return 100 / (100 * Sqr(Sqr(x) - y) + Sqr(1 - x) + 1);
-        }
+            List<KeyValuePair<int[], double>> result = new List<KeyValuePair<int[], double>>();
 
-        // Процедура генерації нового покоління
-        private static List<KeyValuePair<int, double>> GenerateNewGeneration(List<KeyValuePair<int, double>> parents, bool useElitism)
-        {
-            List<KeyValuePair<int, double>> result = new List<KeyValuePair<int, double>>();
-
-            // Реалізація єлітизму
             if (useElitism)
                 result.Add(parents[0]);
 
-            while (result.Count < GenerationSize * 2)
+            while (result.Count < GenerationSize)
             {
-                // Турнірна вибірка попередників
-                int parent1a = _rnd.Next(GenerationSize);
-                int parent1b = _rnd.Next(GenerationSize);
-                int parent2a = _rnd.Next(GenerationSize);
-                int parent2b = _rnd.Next(GenerationSize);
-                int parent1 = Math.Min(parent1a, parent1b);
-                int parent2 = Math.Min(parent2a, parent2b);
+                int parent1 = _rnd.Next(GenerationSize);
+                int parent2 = _rnd.Next(GenerationSize);
 
-                // Генерація з кросовером
-                int mask = ~0 << _rnd.Next(32);
-                int child = parents[parent1].Key & mask | parents[parent2].Key & ~mask;
+                int[] child = new int[NumberOfDrones];
+                for (int i = 0; i < NumberOfDrones; i++)
+                {
+                    int mask = ~0 << _rnd.Next(32);
+                    child[i] = parents[parent1].Key[i] & mask | parents[parent2].Key[i] & ~mask;
 
-                // Мутація
-                if (_rnd.NextDouble() > MutationProability)
-                    child ^= 1 << _rnd.Next(32);
-                result.Add(new KeyValuePair<int, double> (child, Weight(child)));
+                    if (_rnd.NextDouble() < MutationProbability)
+                        child[i] ^= 1 << _rnd.Next(32);
+                }
+
+                result.Add(new KeyValuePair<int[], double>(child, Fitness(child)));
             }
 
             return result;
